@@ -1,6 +1,9 @@
 # RNA-seq-tools
 #### Author: Meaghan Flagg
-A set of useful python scripts for RNA seq analysis
+A set of useful python scripts for RNA seq analysis.
+## Dependencies:
+python 2.7.14  
+pandas version 0.20.3
 
 
 ## Tools
