@@ -19,7 +19,7 @@ Operates on a directory containing 'fastqc.zip' output files.
 **EXAMPLE:**  
 `fastqc_parser.py path/to/fastqc/data outfile.fasta`
 
-### trimmomatic_array.py
+### trimmomatic_array_v2.py
 **DESCRIPTION:** Submits trimmomatic jobs to slurm job scheduler as an array.  
 **OPTIONAL ARGUMENTS:**  
 `-h, --help`  show help message and exit  
@@ -39,4 +39,4 @@ Operates on a directory containing 'fastqc.zip' output files.
                         current working directory  
 `-files_list [FILES_LIST [FILES_LIST ...]]` Alternative to '-dir'. Specify input fastq files separated by spaces  
 **EXAMPLE:**  
-`trimmomatic_array.py -PE -outdir trimmed_fastqs -dir fastqs/`
+`trimmomatic_array_v2.py -PE -outdir trimmed_fastqs -dir fastqs/`
