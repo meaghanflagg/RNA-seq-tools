@@ -35,14 +35,34 @@ def write_json_logfile(files_list, filename):
         json.dump(slurm_array_task_id_to_filename_dict, f, sort_keys=True, indent=4)
     return
     
-def trim_SE(r1):
-    ## do stuff##
-    return
+def trim_SE(r1, outdir, adapter_file):
+    '''
+    returns a string containing a properly formatted command to run Trimmomatic (v0.36) in single-end mode for a given read 1 fastq filename.
+    
+    Default parameters:
+    java -jar trimmomatic-0.36.jar SE -phred33 <input.fq.gz> <output.fq.gz>
+    ILLUMINACLIP:<adapter_file>:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:20
+    '''
+    
+    r1_out=os.path.join(outdir,os.path.basename(r1.replace('_001.fastq','_001_trimmed.fastq')))
+    trimlog=os.path.join(outdir,"{0}_trimlog".format(os.path.basename(r1).split('.fastq')[0]))
+    
+    cmd="java -jar $TRIMMOMATIC/trimmomatic-0.36.jar SE -phred33 -threads 4 -trimlog {trimlog} {r1} {r1_out} \
+        ILLUMINACLIP:{adapter_file}:2:30:10:1:True LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:20".format(
+        trimlog=trimlog, r1=r1, r1_out=r1_out, adapter_file=adapter_file)
+    
+    module="module load trimmomatic/0.36"  # command to load the appropriate trimmomatic module
+    return module, cmd
 
 
 def trimmomatic_PE_command(r1, outdir, adapter_file):
     '''
     returns a string containing a properly formatted command to run Trimmomatic (v0.36) in paired-end mode for a given read 1 fastq filename.
+    
+    Default parameters:
+    java -jar trimmomatic-0.36.jar PE -phred33 <input_forward.fq.gz> <input_reverse.fq.gz>
+    <output_forward_paired.fq.gz> <output_forward_unpaired.fq.gz> <output_reverse_paired.fq.gz> <output_reverse_unpaired.fq.gz>
+    ILLUMINACLIP:<adapter_file>:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:20
     '''
     
     # r1 = read 1
@@ -57,9 +77,9 @@ def trimmomatic_PE_command(r1, outdir, adapter_file):
     #adapter_file="/n/groups/kwon/crystal/bulk_rna_seq/resequencing/trimmomatic_testing/TruSeq-2-3-nextera-tso-adapters.fa" # old adapter file I used
     
     module="module load trimmomatic/0.36"  # command to load the appropriate trimmomatic module
-    cmd="java -jar $TRIMMOMATIC/trimmomatic-0.36.jar PE -threads 4 -trimlog {trimlog} \
+    cmd="java -jar $TRIMMOMATIC/trimmomatic-0.36.jar PE -phred33 -threads 4 -trimlog {trimlog} \
     {r1} {r2} {r1_out} {r1_unpaired} {r2_out} {r2_unpaired} \
-    ILLUMINACLIP:{adapter_file}:2:30:10:1:True LEADING:3 TRAILING:3 MINLEN:20".format(trimlog=trimlog,
+    ILLUMINACLIP:{adapter_file}:2:30:10:1:True LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:20".format(trimlog=trimlog,
     r1=r1, r2=r2, r1_out=r1_out, r1_unpaired=r1_unpaired, r2_out=r2_out, r2_unpaired=r2_unpaired,
     adapter_file=adapter_file)
 
@@ -165,9 +185,10 @@ if __name__ == '__main__':
         
             os.system("{load_module} ; {cmd}".format(load_module=module, cmd=cmd))
         
-        else:
-            ###### FIX ME ########
-            sys.exit("Single end trimming not yet supported :( line 193")
+        else: # single end trimming
+            module, cmd = trim_SE(r1, outdir, args.adapter_file)
+            
+            os.system("{load_module} ; {cmd}".format(load_module=module, cmd=cmd))
             
         
         
