@@ -46,7 +46,7 @@ if __name__ == '__main__':
     
     datafield=args.column    #default is csv
     
-    print "Using {0} column to populate count matrix".format(datafield)
+    print "Using {0} to populate count matrix".format(datafield)
     
     
     # grab paths to star output files:
