@@ -9,7 +9,9 @@ for general information on the HMS O2 cluster please reference the wiki: https:/
 3. Execute bcl2fastq sbatch script:  
   *(insert sbatch script here)*
 4. After the job has completed, check if demultiplexing was successful:  
-Demux stats are stored in ?? *(finish this part)*
+Demux stats are stored in the specified output directory under `Reports/html`. In order to view the demultiplexing results, copy the entire `html` directory to your local machine using rsync (execute this on your local machine):  
+`rsync -r user@transfer.rc.hms.harvard.edu:/path/to/bcl2fastq/output_dir/Reports/html <local_directory>`  
+open the `index.html` file in this directory
 
 ### Check quality of sequences with FastQC
 1. create directory to store fastqc output files:  
@@ -44,7 +46,7 @@ Demux stats are stored in ?? *(finish this part)*
 `STAR-array.py -outdir <STAR_out> -dir <path/to/trimmed/fastqs/>`  
 *Note:* by default this script directs the STAR aligner to pre-built references for the human genome (Gencode GRCH38, transcriptome annotation v28). You can specify a different reference with the `-genomeDir` parameter.  
 4. run multiQC to aggregate data from STAR logfiles:  
-`sbatch -p priority -t 30 --mem=6G --wrap "multiqc <STAR_out>/*R1_001* -n <multiqc_STAR>"`
+`sbatch -p priority -t 30 --mem=3G --wrap "multiqc <STAR_out>/*R1_001* -n <multiqc_STAR>"`
 
 ### Create count matrix from STAR outputs:
 1. use `generate-star-count-matrix.py`  
@@ -76,3 +78,12 @@ Demux stats are stored in ?? *(finish this part)*
 "+-,-+" indicates stranded data with first read reverse. Use column 3 from STAR ReadsPerGene.out.tab.  
 You can add up columns from the STAR ReadsPerGene.out.tab file to confirm:  
 `cat <ReadsPerGene.out.tab> | head -n 104 | tail -n 100 | cut -f <2> | paste -sd+ - | bc`
+
+
+
+
+# Compendium of useful tools for working with common file formats:
+
+#### GTF annotation files:
+* gtfparse (https://github.com/openvax/gtfparse)
+  * parse .gtf files into python pandas dataframe, including the "attributes" column.
