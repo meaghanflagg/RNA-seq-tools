@@ -3,11 +3,12 @@ for general information on the HMS O2 cluster please reference the wiki: https:/
 
 ### De-multiplex with bcl2fastq
 1. create sample sheet:  
-*(insert example sample sheet here)*
+[see example sample sheet for Illumina NextSeq here](examples/Illumina_NextSeq_sample_sheet_example.csv)
+*note:* replace index sequences and names with the indexes used for your experiment.
 2. Load bcl2fastq module:  
 `module load bcl2fastq/2.20.0.422`
 3. Execute bcl2fastq sbatch script:  
-  *(insert sbatch script here)*
+[See example script here](sbatch_scripts/bcl2fastq.sbatch.sh)
 4. After the job has completed, check if demultiplexing was successful:  
 Demux stats are stored in the specified output directory under `Reports/html`. In order to view the demultiplexing results, copy the entire `html` directory to your local machine using rsync (execute this on your local machine):  
 `rsync -r user@transfer.rc.hms.harvard.edu:/path/to/bcl2fastq/output_dir/Reports/html <local_directory>`  
