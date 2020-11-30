@@ -25,16 +25,13 @@ def write_json_logfile(files_list, filename):
         json.dump(slurm_array_task_id_to_filename_dict, f, sort_keys=True, indent=4)
     return
 
-def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode, kwargs_dict, **kwargs):
+def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode, kwargs_dict, unzip_cmd):
     readFiles=read1+" "+read2
 
     cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readfiles, \
         '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'BAM SortedByCoordinate', \
         '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', \
-        '--quantMode':quantMode}
-
-    if unzip_cmd in kwargs:
-        cmd_dict['--readFilesCommand']=unizp_cmd
+        '--quantMode':quantMode, '--readFilesCommand':unzip_cmd}
 
     # update cmd dict with kwargs:
     cmd_dict.update(kwargs)
