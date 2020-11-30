@@ -57,12 +57,12 @@ group.add_argument("-dir", type=str, default=os.getcwd(), help="path to director
 group.add_argument("-files_list", type=str, nargs='*', help="Alternative to '-dir'. Specify input fastq files separated by spaces") # accept zero or more arguments
 
 parser.add_argument("-glob_pattern", type=str, default="*R1_001_trimmed.fastq.gz", help="Unix-style pattern to find files in directory if '-dir' specified. Defaults to illumina-style naming convention '*R1_001_trimmed.fastq.gz'.")
-parser.add_argument("-readFilesCmd", choices=["zcat","'gunzip -c'","'bunzip2 -c'",None], default=None, help="If input files are compressed, specify command necessary for reading.")
+parser.add_argument("-readFilesCmd", choices=["zcat","'gunzip -c'","'bunzip2 -c'",None], default=None, help="If input files are compressed, specify command necessary for reading. Default: None")
 parser.add_argument("-genomeDir", type=str, default='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices',
         help="Specify path to STAR references. Defaults to '/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'.")
 parser.add_argument("-outdir", type=str, nargs='?',
         help="Directory to store output files. Defaults to specififed input directory, or current working directory if none specified.")
-parser.add_argument("-quantMode", type=str, choices=['GeneCounts','TranscriptomeSAM',None], default='GeneCounts', help="See STAR manual --quantMode")
+parser.add_argument("-quantMode", choices=['GeneCounts','TranscriptomeSAM',None], default='GeneCounts', help="See STAR manual --quantMode. Default: GeneCounts")
 parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention.")
 parser.add_argument("-readPair1Name", type=str, default='_R1_', help="indicate naming convention of read 1. Will be used to replace portion of readname indicating R1 with R2. Default: _R1_")
 
@@ -93,6 +93,8 @@ else: # no outdire specified, use input dir.
 
 if args.readFilesCmd=='None':
     args.readFilesCmd=None
+if args.quantMode=='None':
+    args.quantMode=None
 
 #SLURM_ARRAY_TASK_ID=os.environ.get('SLURM_ARRAY_TASK_ID')
 
