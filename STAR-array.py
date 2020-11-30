@@ -31,10 +31,10 @@ def star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthr
 
     cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readfiles, \
         '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'BAM SortedByCoordinate', \
-        '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', '--quantMode':quantMode]
+        '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', '--quantMode':quantMode}
 
     if unzip_cmd:
-        cmd_dict{'--readFilesCommand':args.readFilesCmd}
+        cmd_dict['--readFilesCommand']=args.readFilesCmd
 
     # update cmd dict with kwargs:
     cmd_dict.update(kwargs)
@@ -167,7 +167,7 @@ else:
     #cmd=" ".join(cmd_list).format(threads=nthreads, genomeDir=genomeDir, read1=read1, read2=read2, unzip_cmd=unzip_cmd, \
     #        outFnamePrefix=outFnamePrefix, quantMode=quantMode)
     star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthreads=nthreads,
-                    unzip_cmd=args.readFilesCmd, quantMode=args.quantMode, kwargs_dict=kwargs):
+                    unzip_cmd=args.readFilesCmd, quantMode=args.quantMode, kwargs_dict=kwargs)
 
     load_module='module load star/2.5.2b'
 
