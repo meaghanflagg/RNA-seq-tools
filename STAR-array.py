@@ -25,26 +25,26 @@ def write_json_logfile(files_list, filename):
         json.dump(slurm_array_task_id_to_filename_dict, f, sort_keys=True, indent=4)
     return
 
-def star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthreads=nthreads,
-                    unzip_cmd=args.readFilesCmd, quantMode=args.quantMode, kwargs_dict=kwargs):
+def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode, kwargs_dict, **kwargs):
     readFiles=read1+" "+read2
 
     cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readfiles, \
         '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'BAM SortedByCoordinate', \
-        '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', '--quantMode':quantMode}
+        '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', \
+        '--quantMode':quantMode}
 
-    if unzip_cmd:
-        cmd_dict['--readFilesCommand']=args.readFilesCmd
+    if unzip_cmd in kwargs:
+        cmd_dict['--readFilesCommand']=unizp_cmd
 
     # update cmd dict with kwargs:
     cmd_dict.update(kwargs)
 
+    # generate final command
     cmd_list=[]
     for k, v in cmd_dict.items():
         cmd_list.append(" ".join([k,v]))
 
     cmd = "STAR" + " ".join(cmd_list)
-
     return cmd
 
 
@@ -76,7 +76,6 @@ for k in list(kwargs.keys()):
 
 
 ### catch bad args ###
-
 if not os.path.isdir(args.dir):
     raise ValueError("{0} is not a valid directory!".format(args.dir))
 
@@ -92,7 +91,6 @@ else: # no outdire specified, use input dir.
 
 if args.readFilesCmd=='None':
     args.readFilesCmd=None
-
 
 #SLURM_ARRAY_TASK_ID=os.environ.get('SLURM_ARRAY_TASK_ID')
 
