@@ -39,6 +39,11 @@ def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode
     # update cmd dict with kwargs:
     cmd_dict.update(kwargs)
 
+    # remove any args that are None:
+    for k,v in list(cmd_dict.items()):
+        if v is None:
+            del cmd_dict[k]
+
     # generate final command
     cmd_list=[]
     for k, v in cmd_dict.items():
@@ -60,7 +65,7 @@ parser.add_argument("-genomeDir", type=str, default='/n/groups/kwon/data1/databa
         help="Specify path to STAR references. Defaults to '/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'.")
 parser.add_argument("-outdir", type=str, nargs='?',
         help="Directory to store output files. Defaults to specififed input directory, or current working directory if none specified.")
-parser.add_argument("-quantMode", type=str, choices=['GeneCounts','TranscriptomeSAM'], default='GeneCounts', help="See STAR manual --quantMode")
+parser.add_argument("-quantMode", type=str, choices=['GeneCounts','TranscriptomeSAM',None], default='GeneCounts', help="See STAR manual --quantMode")
 parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention.")
 parser.add_argument("-readPair1Name", type=str, default='_R1_', help="indicate naming convention of read 1. Will be used to replace portion of readname indicating R1 with R2. Default: _R1_")
 
