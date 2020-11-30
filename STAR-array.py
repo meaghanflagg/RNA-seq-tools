@@ -15,7 +15,7 @@ def files_list_from_dir(directory, glob_pattern):
     for path, subdirs, files in os.walk(directory):
         for f in files:
             if fnmatch.fnmatch(f, glob_pattern):
-                files_list.append(os.path.join(os.path.abspath(directory),f))
+                files_list.append(os.path.abspath(os.path.join(path,f)))
     return files_list
 
 def write_json_logfile(files_list, filename):
@@ -28,7 +28,7 @@ def write_json_logfile(files_list, filename):
 def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode, kwargs_dict, unzip_cmd):
     readFiles=read1+" "+read2
 
-    cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readfiles, \
+    cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readFiles, \
         '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'BAM SortedByCoordinate', \
         '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', \
         '--quantMode':quantMode, '--readFilesCommand':unzip_cmd}
@@ -46,7 +46,7 @@ def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode
     for k, v in cmd_dict.items():
         cmd_list.append(" ".join([k,v]))
 
-    cmd = "STAR" + " ".join(cmd_list)
+    cmd = "STAR " + " ".join(cmd_list)
     return cmd
 
 
@@ -57,12 +57,12 @@ group.add_argument("-dir", type=str, default=os.getcwd(), help="path to director
 group.add_argument("-files_list", type=str, nargs='*', help="Alternative to '-dir'. Specify input fastq files separated by spaces") # accept zero or more arguments
 
 parser.add_argument("-glob_pattern", type=str, default="*R1_001_trimmed.fastq.gz", help="Unix-style pattern to find files in directory if '-dir' specified. Defaults to illumina-style naming convention '*R1_001_trimmed.fastq.gz'.")
-parser.add_argument("-readFilesCmd", choices=["zcat","'gunzip -c'","'bunzip2 -c'",None], default=None, help="If input files are compressed, specify command necessary for reading. Default: None")
+parser.add_argument("-readFilesCmd", choices=["zcat","'gunzip -c'","'bunzip2 -c'",'None'], default=None, help="If input files are compressed, specify command necessary for reading. Default: None")
 parser.add_argument("-genomeDir", type=str, default='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices',
         help="Specify path to STAR references. Defaults to '/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'.")
 parser.add_argument("-outdir", type=str, nargs='?',
         help="Directory to store output files. Defaults to specififed input directory, or current working directory if none specified.")
-parser.add_argument("-quantMode", choices=['GeneCounts','TranscriptomeSAM',None], default='GeneCounts', help="See STAR manual --quantMode. Default: GeneCounts")
+parser.add_argument("-quantMode", choices=['GeneCounts','TranscriptomeSAM','None'], default='GeneCounts', help="See STAR manual --quantMode. Default: GeneCounts")
 parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention.")
 parser.add_argument("-readPair1Name", type=str, default='_R1_', help="indicate naming convention of read 1. Will be used to replace portion of readname indicating R1 with R2. Default: _R1_")
 
@@ -78,7 +78,7 @@ for k in list(kwargs.keys()):
 
 
 ### catch bad args ###
-if not os.path.isdir(args.dir):
+if not os.path.isdir(os.path.abspath(args.dir)):
     raise ValueError("{0} is not a valid directory!".format(args.dir))
 
 if args.outdir: # make base output directory, e.g. STAR_out
@@ -88,7 +88,7 @@ if args.outdir: # make base output directory, e.g. STAR_out
         if e.errno != errno.EEXIST:     # if directory exists, ignore the error and proceed.
             raise   # if the error is something else, raise it.
     outdir=os.path.abspath(args.outdir)
-else: # no outdire specified, use input dir.
+else: # no outdir specified, use input dir.
     outdir=os.path.abspath(args.dir)
 
 if args.readFilesCmd=='None':
@@ -96,12 +96,8 @@ if args.readFilesCmd=='None':
 if args.quantMode=='None':
     args.quantMode=None
 
-#SLURM_ARRAY_TASK_ID=os.environ.get('SLURM_ARRAY_TASK_ID')
+SLURM_ARRAY_TASK_ID=os.environ.get('SLURM_ARRAY_TASK_ID')
 
-####TEMP####
-SLURM_ARRAY_TASK_ID=1
-files_list=files_list_from_dir(args.dir, args.glob_pattern)
-os.environ['ARRAY_FILES']=":".join(files_list)
 
 if SLURM_ARRAY_TASK_ID == None:
 
@@ -133,7 +129,7 @@ else:
     read2=read1.replace(args.readPair1Name,r2replace)
 
     #extract sample name from read names using regex to match illumina naming convention, and grab part before that.
-    try: sample_name=read1.split(re.search(args.sampleNameRegex,read1).group(0))[0].split('/')[-1]
+    try: sample_name=re.search(args.sampleNameRegex,read1).group(0)
     except AttributeError: sample_name=read1.split('.fastq')[0]
 
     # make directory for results:
@@ -144,12 +140,11 @@ else:
         if e.errno != errno.EEXIST:     # if directory exists, ignore the error and proceed.
             raise   # if the error is something else, raise it.
         else:
-            warnings.warn("Results directory for sample {0} already exists. Files may be overwritten!".format(sample_name))
+            warnings.warn("Results directory ({0}) already exists. Files may be overwritten!".format(results_directory))
 
 
     # create filename prefix for STAR, including the results directory
-    outFnamePrefix="{res_dir}/{samp_name}_STAR_".format(res_dir=results_directory, samp_name=sample_name)
-
+    outFnamePrefix=os.path.join(results_directory,sample_name+"_STAR_")
 
 ## parameters for running STAR ##
     # determine number of threads:
@@ -168,7 +163,7 @@ else:
 
     #cmd=" ".join(cmd_list).format(threads=nthreads, genomeDir=genomeDir, read1=read1, read2=read2, unzip_cmd=unzip_cmd, \
     #        outFnamePrefix=outFnamePrefix, quantMode=quantMode)
-    star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthreads=nthreads,
+    cmd = star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthreads=nthreads,
                     unzip_cmd=args.readFilesCmd, quantMode=args.quantMode, kwargs_dict=kwargs)
 
     load_module='module load star/2.5.2b'
