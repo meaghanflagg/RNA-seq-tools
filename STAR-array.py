@@ -7,14 +7,15 @@
 #SBATCH -e star.%A_%a.err         #job error logs
 
 
-import os, fnmatch, re, sys, argparse, errno, json
+import os, fnmatch, re, sys, argparse, errno, json, warnings, linecache
 from datetime import datetime
 
 def files_list_from_dir(directory, glob_pattern):
     files_list=[]
-    for f in os.listdir(directory):
-        if fnmatch.fnmatch(f, glob_pattern):
-            files_list.append(os.path.join(os.path.abspath(directory),f))
+    for path, subdirs, files in os.walk(directory):
+        for f in files:
+            if fnmatch.fnmatch(f, glob_pattern):
+                files_list.append(os.path.join(os.path.abspath(directory),f))
     return files_list
 
 def write_json_logfile(files_list, filename):
@@ -24,68 +25,95 @@ def write_json_logfile(files_list, filename):
         json.dump(slurm_array_task_id_to_filename_dict, f, sort_keys=True, indent=4)
     return
 
-def star_command_PE(read1, read2, sample_name, genomeDir='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices', nthreads=8,
-                    unzip_cmd='zcat', quantMode='GeneCounts'):
-    
-    cmd_list=['STAR', '--runThreadN', '{threads}', '--genomeDir', '{genomeDir}', '--readFilesIn', '{read1}', '{read2}', \
-        '--readFilesCommand', '{unzip_cmd}', '--outFileNamePrefix', '{outFnamePrefix}', '--outSAMtype BAM SortedByCoordinate', \
-        '--outSAMunmapped None', '--outSAMattributes All', '--outReadsUnmapped Fastx', '--quantMode', '{quantMode}']
+def star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthreads=nthreads,
+                    unzip_cmd=args.readFilesCmd, quantMode=args.quantMode, kwargs_dict=kwargs):
+    readFiles=read1+" "+read2
 
-    cmd=" ".join(cmd_list).format(threads=nthreads, genomeDir=genomeDir, read1=read1, read2=read2, unzip_cmd=unzip_cmd, \
-            outFnamePrefix=outFnamePrefix, quantMode=quantMode)
-    
+    cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readfiles, \
+        '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'BAM SortedByCoordinate', \
+        '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', '--quantMode':quantMode]
+
+    if unzip_cmd:
+        cmd_dict{'--readFilesCommand':args.readFilesCmd}
+
+    # update cmd dict with kwargs:
+    cmd_dict.update(kwargs)
+
+    cmd_list=[]
+    for k, v in cmd_dict.items():
+        cmd_list.append(" ".join([k,v]))
+
+    cmd = "STAR" + " ".join(cmd_list)
+
     return cmd
 
-# which directory to look thru:
-try: directory = os.path.abspath(sys.argv[1])
-except IndexError: directory=os.getcwd()
 
-parser = argparse.ArgumentParser(description="DESCRIPTION: submit STAR alignment jobs as an sbatch array")
-parser.add_argument("-glob_pattern", type=str, default="*R1_001_trimmed.fastq.gz", help="Unix-style pattern to find files in directory. Defaults to illumina-style naming convention '*R1_001_trimmed.fastq.gz'.")
-parser.add_argument("-genomeDir", type=str, default='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices',
-        help="Specify path to STAR references. Defaults to '/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'.")
-parser.add_argument("-outdir", type=str, nargs='?',
-        help="Directory to store output files. Defaults to specififed input directory, or current working directory if none specified.")
-parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention.")
-# loop through a directory or pass a list of files:
+parser = argparse.ArgumentParser(description="DESCRIPTION: submit STAR alignment jobs as an sbatch array.\nAdditional keyword arguments will be passed to STAR aligner.")
+# handle file input as either directory or list of files:
 group=parser.add_mutually_exclusive_group()
 group.add_argument("-dir", type=str, default=os.getcwd(), help="path to directory containing fastq files. Default: current working directory")
 group.add_argument("-files_list", type=str, nargs='*', help="Alternative to '-dir'. Specify input fastq files separated by spaces") # accept zero or more arguments
 
-args=parser.parse_args()
+parser.add_argument("-glob_pattern", type=str, default="*R1_001_trimmed.fastq.gz", help="Unix-style pattern to find files in directory if '-dir' specified. Defaults to illumina-style naming convention '*R1_001_trimmed.fastq.gz'.")
+parser.add_argument("-readFilesCmd", choices=["zcat","'gunzip -c'","'bunzip2 -c'",None], default=None, help="If input files are compressed, specify command necessary for reading.")
+parser.add_argument("-genomeDir", type=str, default='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices',
+        help="Specify path to STAR references. Defaults to '/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'.")
+parser.add_argument("-outdir", type=str, nargs='?',
+        help="Directory to store output files. Defaults to specififed input directory, or current working directory if none specified.")
+parser.add_argument("-quantMode", type=str, choices=['GeneCounts','TranscriptomeSAM'], default='GeneCounts', help="See STAR manual --quantMode")
+parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention.")
+parser.add_argument("-readPair1Name", type=str, default='_R1_', help="indicate naming convention of read 1. Will be used to replace portion of readname indicating R1 with R2. Default: _R1_")
 
-### catch bad args ###    
-if args.dir:
-    # check if directory exists:
-    if not os.path.isdir(args.dir):
-        sys.exit("Path error: {0} is not a valid directory!".format(args.dir))
+# parse known and unknown args
+args, kwargs=parser.parse_known_args()
+# create dict from unknown kwargs, remove any conflicting args
+kwargsIter=iter(kwargs)
+kwargs=dict(zip(kwargsIter,kwargsIter))
+
+for k in list(kwargs.keys()):
+    if k in args:
+        del kwargs[k]
+
+
+### catch bad args ###
+
+if not os.path.isdir(args.dir):
+    raise ValueError("{0} is not a valid directory!".format(args.dir))
 
 if args.outdir: # make base output directory, e.g. STAR_out
     # test if directory exists, if not create it
     try: os.makedirs(args.outdir)
     except OSError as e:
         if e.errno != errno.EEXIST:     # if directory exists, ignore the error and proceed.
-            raise   # if the error is something else, raise it.    
+            raise   # if the error is something else, raise it.
     outdir=os.path.abspath(args.outdir)
-else:
-    outdir=os.path.abspath(args.dir)   # defaults to specified input directory, or os.getcwd() if no input dir was specified.
+else: # no outdire specified, use input dir.
+    outdir=os.path.abspath(args.dir)
+
+if args.readFilesCmd=='None':
+    args.readFilesCmd=None
 
 
-SLURM_ARRAY_TASK_ID=os.environ.get('SLURM_ARRAY_TASK_ID')
+#SLURM_ARRAY_TASK_ID=os.environ.get('SLURM_ARRAY_TASK_ID')
+
+####TEMP####
+SLURM_ARRAY_TASK_ID=1
+files_list=files_list_from_dir(args.dir, args.glob_pattern)
+os.environ['ARRAY_FILES']=":".join(files_list)
 
 if SLURM_ARRAY_TASK_ID == None:
-    
+
     if args.files_list:
             files_list=args.files_list
     else:
         files_list=files_list_from_dir(args.dir, args.glob_pattern)
-    
+
     if not len(files_list) >= 1:
         sys.exit("Error: No files found!")
-    
+
     os.environ['ARRAY_FILES']=":".join(files_list)
     #os.environ['DIRECTORY']=directory
-    
+
     sbatch_cmd=["sbatch","--array=0-{0}".format(len(files_list)-1),__file__,]+sys.argv[1:]
 
     os.system( " ".join(sbatch_cmd) )
@@ -96,45 +124,52 @@ if SLURM_ARRAY_TASK_ID == None:
 
 else:
     files_list = os.environ.get('ARRAY_FILES').split(':')
-    
-    #directory=os.environ.get('DIRECTORY')
-
-    #os.system("module load star/2.5.2b")
-    
     read1=files_list[int(SLURM_ARRAY_TASK_ID)]
-    
-    read2=read1.replace('_R1_','_R2_')
-    
+
+    # generate read2 name using appropriate naming convention:
+    r2replace=args.readPair1Name.replace('1','2')
+    read2=read1.replace(args.readPair1Name,r2replace)
+
     #extract sample name from read names using regex to match illumina naming convention, and grab part before that.
     try: sample_name=read1.split(re.search(args.sampleNameRegex,read1).group(0))[0].split('/')[-1]
     except AttributeError: sample_name=read1.split('.fastq')[0]
-    
+
     # make directory for results:
     results_directory=os.path.join(outdir,sample_name+"_STAR_out")
-    #os.mkdir(results_directory)
-    
+
     try: os.makedirs(results_directory)
     except OSError as e:
         if e.errno != errno.EEXIST:     # if directory exists, ignore the error and proceed.
             raise   # if the error is something else, raise it.
-    
-    
+        else:
+            warnings.warn("Results directory for sample {0} already exists. Files may be overwritten!".format(sample_name))
+
+
     # create filename prefix for STAR, including the results directory
     outFnamePrefix="{res_dir}/{samp_name}_STAR_".format(res_dir=results_directory, samp_name=sample_name)
 
 
 ## parameters for running STAR ##
-    nthreads=8
-    genomeDir='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'
-    unzip_cmd='zcat'   # command to unzip your files
-    quantMode='GeneCounts'
+    # determine number of threads:
+    line=linecache.getline(__file__, 4)
+    match=re.search(r"-c [0-9]*", line).group(0)
+    nthreads=match.split("-c ")[1]
 
-    cmd_list=['STAR', '--runThreadN', '{threads}', '--genomeDir', '{genomeDir}', '--readFilesIn', '{read1}', '{read2}', \
-        '--readFilesCommand', '{unzip_cmd}', '--outFileNamePrefix', '{outFnamePrefix}', '--outSAMtype BAM SortedByCoordinate', \
-        '--outSAMunmapped None', '--outSAMattributes All', '--outReadsUnmapped Fastx', '--quantMode', '{quantMode}']
 
-    cmd=" ".join(cmd_list).format(threads=nthreads, genomeDir=genomeDir, read1=read1, read2=read2, unzip_cmd=unzip_cmd, \
-            outFnamePrefix=outFnamePrefix, quantMode=quantMode)
+    #genomeDir='/n/groups/kwon/data1/databases/human/hg38/gencode_GRCh38/STAR_indices'
+    #unzip_cmd='zcat'   # command to unzip your files
+    #quantMode='GeneCounts'
+
+    #cmd_list=['STAR', '--runThreadN', '{threads}', '--genomeDir', '{genomeDir}', '--readFilesIn', '{read1}', '{read2}', \
+    #    '--readFilesCommand', '{unzip_cmd}', '--outFileNamePrefix', '{outFnamePrefix}', '--outSAMtype BAM SortedByCoordinate', \
+    #    '--outSAMunmapped None', '--outSAMattributes All', '--outReadsUnmapped Fastx', '--quantMode', '{quantMode}']
+
+    #cmd=" ".join(cmd_list).format(threads=nthreads, genomeDir=genomeDir, read1=read1, read2=read2, unzip_cmd=unzip_cmd, \
+    #        outFnamePrefix=outFnamePrefix, quantMode=quantMode)
+    star_command_PE(read1, read2, outFnamePrefix, genomeDir=args.genomeDir, nthreads=nthreads,
+                    unzip_cmd=args.readFilesCmd, quantMode=args.quantMode, kwargs_dict=kwargs):
+
     load_module='module load star/2.5.2b'
-    
-    os.system("{module} ; {command}".format(module=load_module, command=cmd))
+
+    #os.system("{module} ; {command}".format(module=load_module, command=cmd))
+    print(cmd)
