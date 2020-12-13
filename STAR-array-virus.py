@@ -2,7 +2,7 @@
 #SBATCH -p short               #partition
 #SBATCH -t 1:00:00             #wall time
 #SBATCH -c 8                   #cores requested
-#SBATCH --mem 48G              #memory requested
+#SBATCH --mem 5G              #memory requested
 #SBATCH -o star.%A_%a.out         #job out logs
 #SBATCH -e star.%A_%a.err         #job error logs
 
@@ -29,9 +29,10 @@ def star_command_PE(read1, read2, outFnamePrefix, genomeDir, nthreads, quantMode
     readFiles=read1+" "+read2
 
     cmd_dict={'--runThreadN':nthreads, '--genomeDir':genomeDir, '--readFilesIn':readFiles, \
-        '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'BAM SortedByCoordinate', \
-        '--outSAMunmapped': 'None', '--outSAMattributes': 'All', '--outReadsUnmapped': 'Fastx', \
-        '--quantMode':quantMode, '--readFilesCommand':unzip_cmd}
+        '--outFileNamePrefix':outFnamePrefix, '--outSAMtype': 'SAM', \
+        '--outSAMunmapped': 'None', '--outSAMattributes': 'Standard', '--outReadsUnmapped': 'Fastx', \
+        '--readFilesCommand':unzip_cmd, '--outFilterMismatchNmax': '4', \
+        '--outFilterMultimapNmax': '1000', '--limitOutSAMoneReadBytes': '1000000'}
 
     # update cmd dict with kwargs:
     cmd_dict.update(kwargs)
@@ -63,8 +64,9 @@ parser.add_argument("-genomeDir", type=str, default='/n/groups/kwon/data1/databa
 parser.add_argument("-outdir", type=str, nargs='?',
         help="Directory to store output files. Defaults to specififed input directory, or current working directory if none specified.")
 parser.add_argument("-quantMode", choices=['GeneCounts','TranscriptomeSAM','None'], default='GeneCounts', help="See STAR manual --quantMode. Default: GeneCounts")
-parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention.")
+parser.add_argument("-sampleNameRegex", type=str, default=r'_S[0-9]+.*_R[12]_001', help="regular expression to capture non-sample name portion of fastq filename. Defaults to match Illumina naming convention. Specify contents of expression without quotes, e.g. for r'[A-Z]{1}_[0-9]+' specify [A-Z]{1}_[0-9]+")
 parser.add_argument("-readPair1Name", type=str, default='_R1_', help="indicate naming convention of read 1. Will be used to replace portion of readname indicating R1 with R2. Default: _R1_")
+
 
 # parse known and unknown args
 args, kwargs=parser.parse_known_args()
